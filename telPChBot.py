@@ -14,9 +14,18 @@ def textCheck(txt, doopen, delay_s):
     txt = txt.translate(non_bmp_map)
     print(txt)
     print("______________________________________")
-    url_res = re.findall("(?P<url>http?://telegra.ph[^\s()]+)", txt)
-    if url_res:
-        for url in url_res:
+
+    url_res_t0 = re.findall("(?P<url>https?://telegram.me/[^\s()]+_CHANGE_BOT[^\s()]+)", txt)
+    if url_res_t0:
+        for url in url_res_t0:
+            print("Found: " + url)
+            if (doopen):
+                webbrowser.open(url, 1, True)
+            time.sleep(delay_s)
+
+    url_res_t1 = re.findall("(?P<url>http?://telegra.ph/[^\s()]+)", txt)
+    if url_res_t1:
+        for url in url_res_t1:
             print("Checking " + url)
             d = pq(url=url)
             p = d('a[href^="https://telegram.me/"]:first')
@@ -25,7 +34,45 @@ def textCheck(txt, doopen, delay_s):
                 print("Found: " + aim)
                 if (doopen):
                     webbrowser.open(aim, 1, True)
+            else:
+                p = d('a[href^="http://raketa8.ru/c"]:first')
+                if p.length > 0:
+                    aim = p.attr('href')
+                    print("Found: " + aim)
+                    if (doopen):
+                        webbrowser.open(aim, 1, True)
             time.sleep(delay_s)
+
+    url_res_t2 = re.findall("(?P<url>http?://raketa8.ru/c[^\s()]+)", txt)
+    if url_res_t2:
+        for url in url_res_t2:
+            print("Checking " + url)
+            d = pq(url=url)
+            p = d('a[href^="https://telegram.me/"]:first')
+            if p.length > 0:
+                aim = p.attr('href')
+                print("Found: " + aim)
+                if (doopen):
+                    webbrowser.open(aim, 1, True)
+            else:
+                p = d('form .g-recaptcha')
+                if p.length > 0:
+                    print("Found: " + url)
+                    if (doopen):
+                        webbrowser.open(url, 1, True)
+            time.sleep(delay_s)
+
+def checkCurChat(chatname, client):
+    response = client.invoke(ResolveUsernameRequest(chatname))
+    for msg in client.get_message_history(response.peer, limit=2):
+        if not hasattr(msg, 'text'):
+            msg.text = None
+        if msg.text is None:
+            if not msg.entities:
+                msg.text = msg.message
+            msg.text = markdown.unparse(msg.message,
+                                        msg.entities or [])
+        textCheck(msg.text, False, 2)
 
 def main():
     config = configparser.ConfigParser()
@@ -34,7 +81,8 @@ def main():
     api_id = config['main']['api_id']
     api_hash = config['main']['api_hash']
     phone = config['main']['phone_number']
-    chatname = config['chat']['name']
+    chatname1 = config['chat']['name1']
+    chatname2 = config['chat']['name2']
 
     client = TelegramClient(
         session_name,
@@ -59,19 +107,12 @@ def main():
 
     print(client.session.server_address)   # Successfull
 
-    response = client.invoke(ResolveUsernameRequest(chatname))
+    checkCurChat(chatname1, client)
+    time.sleep(1)
+    checkCurChat(chatname2, client)
+    time.sleep(1)
 
-    for msg in client.get_message_history(response.peer, limit=1):
-        if not hasattr(msg, 'text'):
-            msg.text = None
-        if msg.text is None:
-            if not msg.entities:
-                msg.text = msg.message
-            msg.text = markdown.unparse(msg.message,
-                                        msg.entities or [])
-        textCheck(msg.text, False, 2)
-
-    @client.on(events.NewMessage(chats=chatname, incoming=True))
+    @client.on(events.NewMessage(chats=[chatname1,chatname2], incoming=True))
     def normal_handler(event):
         textCheck(event.text, True, 0)
 
