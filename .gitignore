@@ -104,3 +104,4 @@ ENV/
 
 # TG session
 *.session
+selenium/
