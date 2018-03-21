@@ -9,7 +9,10 @@ import pyautogui
 from pyquery import PyQuery as pq
 
 from telethon import utils, events, TelegramClient, ConnectionMode
+from telethon.tl.functions.channels import GetFullChannelRequest
+from telethon.tl.types import InputChannel, PeerChat
 from telethon.tl.functions.contacts import ResolveUsernameRequest
+from telethon.tl.functions.messages import CheckChatInviteRequest
 from telethon.extensions import markdown
 
 from selenium import webdriver
@@ -208,6 +211,11 @@ def botStart(client, url):
         client.send_message(m.group(1), '/start ' + m.group(2))
 
 def linkCheck(url, doopen, client, deep):
+    filematch = getFirstMatch(r"http://telegra.ph/file/([a-z0-9]+.[a-z0-9]+)", url)
+    if filematch:
+        print("Not checking file " + url)
+        return
+
     print("Checking " + url)
     d = pq(url=url)
 
@@ -270,11 +278,19 @@ def textCheck(txt, doopen, delay_s, client):
         if not password:
             password = getFirstMatch(r"парол[а-я]+ +для +[а-я:]+ +([a-z0-9]{4,10})", txt)
         if not password:
+            password = getFirstMatch(r"парол[а-я]+ +от +[а-я:]+ +([a-z0-9]{4,10})", txt)
+        if not password:
             password = getFirstMatch(r"парол[а-я]+ +\*\*([a-z0-9]{4,10})\*\*", txt)
         if not password:
             password = getFirstMatch(r"парол[а-я]+[ :\*]+([a-z0-9]{4,10})", txt)
         if not password:
             password = getFirstMatch(r"парол[а-я]+ +для +[а-я:]+ +\*\*([a-z0-9]{4,10})\*\*", txt)
+        if not password:
+            password = getFirstMatch(r"парол[а-я]+ +от +[а-я:]+ +\*\*([a-z0-9]{4,10})\*\*", txt)
+        if not password:
+            password = getFirstMatch(r"парол[а-я]+[-а-я :]+ +\*\*([a-z0-9]{4,10})\*\*", txt)
+        if not password:
+            password = getFirstMatch(r"парол[а-я :*]+([a-z0-9]{4,10})", txt)
 
         if password:
             print("Found captcha password: " + password)
@@ -282,7 +298,7 @@ def textCheck(txt, doopen, delay_s, client):
         for url in url_res_t:
             print("Found captcha: " + url)
             if (doopen):
-                webbrowser.open(url+"?password="+password, 1, True)
+                webbrowser.open(url+"?paswd="+password, 1, True)
                 #captchaForm(client, url, password)
             #linkCheck(url, doopen, client, 0)
             time.sleep(delay_s)
@@ -295,8 +311,23 @@ def textCheck(txt, doopen, delay_s, client):
             time.sleep(delay_s)
 
 def checkCurChat(chatname, client):
-    response = client.invoke(ResolveUsernameRequest(chatname))
-    for msg in client.get_messages(response.peer, limit=1):
+    print("\n")
+
+    try:
+        int_chat = int(chatname)
+    except:
+        int_chat = 0
+
+    if int_chat != 0:
+        input_channel =  client(GetFullChannelRequest(int_chat))
+        channel_id = input_channel.full_chat.id
+        print("<<<Fast checking: " + input_channel.chats[0].title + " (" + str(int_chat) + ">>>")
+    else:
+        response = client.invoke(ResolveUsernameRequest(chatname))
+        channel_id = response.peer.channel_id
+        print("<<<Fast checking: " + response.chats[0].title + " (" + response.chats[0].username + ") >>>")
+
+    for msg in client.get_messages(channel_id, limit=1):
         if (msg != '') and not (msg is None):
             if not hasattr(msg, 'text'):
                 msg.text = None
@@ -305,6 +336,8 @@ def checkCurChat(chatname, client):
             if msg.text is None and msg.message:
                 msg.text = msg.message
             textCheck(msg.text, False, 1, client)
+
+    return channel_id
 
 def main():
     global pos_changed
@@ -316,10 +349,14 @@ def main():
     api_id = config['main']['api_id']
     api_hash = config['main']['api_hash']
     phone = config['main']['phone_number']
-    chatname1 = config['chat']['name1']
-    chatname2 = config['chat']['name2']
-    chatname3 = config['chat']['name3']
-    chatname4 = config['chat']['name4']
+
+    chatcount = int(config['chat']['count'])
+    chatnames = []
+
+    chat_index = 1
+    while chat_index <= chatcount:
+        chatnames.append(config['chat']['name' + str(chat_index)])
+        chat_index = chat_index + 1
 
     client = TelegramClient(
         session_name,
@@ -349,19 +386,19 @@ def main():
     #captchaForm(client, 'http://raketa8.ru/?page_id=30&preview=true', '')
     #return
 
-    checkCurChat(chatname1, client)
-    time.sleep(1)
-    checkCurChat(chatname2, client)
-    time.sleep(1)
-    checkCurChat(chatname3, client)
-    time.sleep(1)
-    checkCurChat(chatname4, client)
-    time.sleep(1)
+    chat_index = 0
+    while chat_index < len(chatnames):
+        chatnames[chat_index] = checkCurChat(chatnames[chat_index], client)
+        time.sleep(1)
+        chat_index = chat_index + 1
 
-    @client.on(events.NewMessage(chats=[chatname1,chatname2,chatname3,chatname4], incoming=True))
+    print("Channels: " + str(chatnames))
+
+    @client.on(events.NewMessage(chats=chatnames, incoming=True))
     def normal_handler(event):
         textCheck(event.text, True, 0, client)
 
+    print("\n")
     print('Listening for new messages...')
 
     last_pos = pyautogui.position()
