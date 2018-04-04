@@ -10,20 +10,16 @@ from pyquery import PyQuery as pq
 
 from telethon import utils, events, TelegramClient, ConnectionMode
 from telethon.tl.functions.channels import GetFullChannelRequest
-from telethon.tl.types import InputChannel, PeerChat
 from telethon.tl.functions.contacts import ResolveUsernameRequest
-from telethon.tl.functions.messages import CheckChatInviteRequest
 from telethon.extensions import markdown
 
 from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException   
 from selenium.webdriver.common.proxy import Proxy, ProxyType
-from selenium.webdriver.remote.command import Command
 from selenium.webdriver.chrome.options import Options
 
 def wait_between(a,b):
@@ -272,25 +268,27 @@ def textCheck(txt, doopen, delay_s, client):
     if url_res_t:
         random.shuffle(url_res_t)
 
-        password = getFirstMatch(r"парол[а-я]+ +([a-z0-9]{4,10})", txt)
+        password = getFirstMatch(r"парол[а-я]+ +([a-z0-9]{3,10})", txt)
         if not password:
-            password = getFirstMatch(r"парол[а-я]+[ :]+([a-z0-9]{4,10})", txt)
+            password = getFirstMatch(r"парол[а-я]+[ :]+([a-z0-9]{3,10})", txt)
         if not password:
-            password = getFirstMatch(r"парол[а-я]+ +для +[а-я:]+ +([a-z0-9]{4,10})", txt)
+            password = getFirstMatch(r"парол[а-я]+ +для +[а-я:]+ +([a-z0-9]{3,10})", txt)
         if not password:
-            password = getFirstMatch(r"парол[а-я]+ +от +[а-я:]+ +([a-z0-9]{4,10})", txt)
+            password = getFirstMatch(r"парол[а-я]+ +от +[а-я:]+ +([a-z0-9]{3,10})", txt)
         if not password:
-            password = getFirstMatch(r"парол[а-я]+ +\*\*([a-z0-9]{4,10})\*\*", txt)
+            password = getFirstMatch(r"парол[а-я]+ +\*\*([a-z0-9]{3,10})\*\*", txt)
         if not password:
-            password = getFirstMatch(r"парол[а-я]+[ :\*]+([a-z0-9]{4,10})", txt)
+            password = getFirstMatch(r"парол[а-я]+[ :\*]+([a-z0-9]{3,10})", txt)
         if not password:
-            password = getFirstMatch(r"парол[а-я]+ +для +[а-я:]+ +\*\*([a-z0-9]{4,10})\*\*", txt)
+            password = getFirstMatch(r"парол[а-я]+ +для +[а-я:]+ +\*\*([a-z0-9]{3,10})\*\*", txt)
         if not password:
-            password = getFirstMatch(r"парол[а-я]+ +от +[а-я:]+ +\*\*([a-z0-9]{4,10})\*\*", txt)
+            password = getFirstMatch(r"парол[а-я]+ +от +[а-я:]+ +\*\*([a-z0-9]{3,10})\*\*", txt)
         if not password:
-            password = getFirstMatch(r"парол[а-я]+[-а-я :]+ +\*\*([a-z0-9]{4,10})\*\*", txt)
+            password = getFirstMatch(r"парол[а-я]+[-а-я :]+ +\*\*([a-z0-9]{3,10})\*\*", txt)
         if not password:
-            password = getFirstMatch(r"парол[а-я :*]+([a-z0-9]{4,10})", txt)
+            password = getFirstMatch(r"парол[а-я :*]+([a-z0-9]{3,10})", txt)
+        if not password:
+            password = getFirstMatch(r"кодовое слово[ :*]+([a-z0-9]{3,10})", txt)
 
         if password:
             print("Found captcha password: " + password)
@@ -321,10 +319,12 @@ def checkCurChat(chatname, client):
     if int_chat != 0:
         input_channel =  client(GetFullChannelRequest(int_chat))
         channel_id = input_channel.full_chat.id
+        channel = int_chat
         print("<<<Fast checking: " + input_channel.chats[0].title + " (" + str(int_chat) + ">>>")
     else:
         response = client.invoke(ResolveUsernameRequest(chatname))
         channel_id = response.peer.channel_id
+        channel = chatname
         print("<<<Fast checking: " + response.chats[0].title + " (" + response.chats[0].username + ") >>>")
 
     for msg in client.get_messages(channel_id, limit=1):
@@ -337,7 +337,7 @@ def checkCurChat(chatname, client):
                 msg.text = msg.message
             textCheck(msg.text, False, 1, client)
 
-    return channel_id
+    return channel
 
 def main():
     global pos_changed
@@ -396,6 +396,8 @@ def main():
 
     @client.on(events.NewMessage(chats=chatnames, incoming=True))
     def normal_handler(event):
+        print("\n\n")
+        print(event.message.date)
         textCheck(event.text, True, 0, client)
 
     print("\n")
@@ -405,7 +407,7 @@ def main():
     current_pos_index = 0
 
     while True:
-        time.sleep(0.05)
+        time.sleep(0.1)
         current_pos_index = current_pos_index + 1
         if (current_pos_index % 1000 == 0):
             curr_pos = pyautogui.position()
